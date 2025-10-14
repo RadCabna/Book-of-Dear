@@ -1,8 +1,12 @@
-//
-//  NavigationGuard.swift
-//  Book of Dead
-//
-//  Created by Алкександр Степанов on 07.10.2025.
-//
-
 import Foundation
+
+
+enum AvailableScreens {
+    case MENU
+    case GAME
+}
+
+class NavGuard: ObservableObject {
+    @Published var currentScreen: AvailableScreens = .MENU
+    static var shared: NavGuard = .init()
+}

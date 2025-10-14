@@ -6,3 +6,9 @@
 //
 
 import Foundation
+
+struct LevelsData {
+    var capital: Int
+    var time: Int
+    var goal: Int
+}
