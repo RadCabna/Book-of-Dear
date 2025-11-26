@@ -22,7 +22,7 @@ class OrientationManager: ObservableObject  {
 struct RootView: View {
     @State private var status: LoaderStatus = .LOADING
     @ObservedObject private var nav: NavGuard = NavGuard.shared
-    let url: URL = URL(string: "https://barstowflow.com/settings?page=test")!
+    let url: URL = URL(string: "https://barstowflow.com/settings")!
     
     @ObservedObject private var orientationManager: OrientationManager = OrientationManager.shared
     
