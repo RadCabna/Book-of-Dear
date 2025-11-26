@@ -118,6 +118,7 @@ class GameViewModel: ObservableObject {
     private var progressTimer: Timer?
     private var initialPlayerHealth: Int = 0
     private var initialEnemyHealth: Int = 0
+    private var isGameStopped: Bool = false // Флаг остановки игры
     
     private let allTabletImages = [
         "atc1", "atc2", "atc3", "atc4", "atc5", "atc6", "atc7",
@@ -125,15 +126,40 @@ class GameViewModel: ObservableObject {
     ]
     
     init() {
+        isGameStopped = false
         setupRandomTablets()
         setupWarriors()
     }
     
     deinit {
+        stopGame()
+    }
+    
+    // MARK: - Stop Game
+    func stopGame() {
+        // Устанавливаем флаг остановки игры
+        isGameStopped = true
+        
+        // Останавливаем все таймеры
         explosionTimer?.invalidate()
         explosionTimer = nil
         progressTimer?.invalidate()
         progressTimer = nil
+        
+        // Сбрасываем состояние игры
+        battleStarted = false
+        battleResult = .none
+        showTabletSelection = false
+        isProcessing = false
+        warriorsMovedToCenter = false
+        battleProgress = 0.0
+        
+        // Очищаем взрывы
+        explosions.removeAll()
+        
+        // Останавливаем все звуки
+        SoundManager.shared.stopAllEffects()
+        SoundManager.shared.stopMusic()
     }
     
     // MARK: - Tablet Bonuses
@@ -203,15 +229,20 @@ class GameViewModel: ObservableObject {
     
     // MARK: - Start Battle
     func startBattle() {
+        // Проверяем, не остановлена ли игра
+        guard !isGameStopped else { return }
+        
         // Запускаем анимацию движения воинов к центру
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self, !self.isGameStopped else { return }
             withAnimation(.easeInOut(duration: 2.5)) {
                 self.warriorsMovedToCenter = true
                 self.warriorSpacing = -20 // Воины чуть-чуть сжимаются друг к другу
             }
             
             // После того как воины сошлись - начинаем битву
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) { [weak self] in
+                guard let self = self, !self.isGameStopped else { return }
                 self.battleStarted = true
                 self.startFighting()
             }
@@ -219,6 +250,9 @@ class GameViewModel: ObservableObject {
     }
     
     func startFighting() {
+        // Проверяем, не остановлена ли игра
+        guard !isGameStopped else { return }
+        
         // Записываем начальное здоровье команд
         initialPlayerHealth = playerWarriors.reduce(0) { $0 + $1.health }
         initialEnemyHealth = enemyWarriors.reduce(0) { $0 + $1.health }
@@ -240,6 +274,9 @@ class GameViewModel: ObservableObject {
     }
     
     func updateBattleProgress() {
+        // Проверяем, не остановлена ли игра
+        guard !isGameStopped else { return }
+        
         // Подсчитываем текущее здоровье команд
         let currentPlayerHealth = playerWarriors.reduce(0) { $0 + $1.health }
         let currentEnemyHealth = enemyWarriors.reduce(0) { $0 + $1.health }
@@ -264,9 +301,12 @@ class GameViewModel: ObservableObject {
     
     // MARK: - Explosions
     func startExplosions() {
+        // Проверяем, не остановлена ли игра
+        guard !isGameStopped else { return }
+        
         // Генерируем взрывы каждые 0.3-0.7 секунд
         explosionTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+            guard let self = self, !self.isGameStopped else { return }
             
             // Проверяем, идет ли еще битва
             let playerAlive = self.playerWarriors.contains(where: { $0.isAlive })
@@ -309,11 +349,15 @@ class GameViewModel: ObservableObject {
     
     // MARK: - Battle Logic
     func startWarriorAttacks() {
+        // Проверяем, не остановлена ли игра
+        guard !isGameStopped else { return }
+        
         // Запускаем атаки для воинов игрока
         for (index, warrior) in playerWarriors.enumerated() {
             if warrior.isAlive {
                 let randomDelay = Double.random(in: 0.1...0.8)
-                DispatchQueue.main.asyncAfter(deadline: .now() + randomDelay) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + randomDelay) { [weak self] in
+                    guard let self = self, !self.isGameStopped else { return }
                     self.performPlayerWarriorAttack(at: index)
                 }
             }
@@ -323,7 +367,8 @@ class GameViewModel: ObservableObject {
         for (index, warrior) in enemyWarriors.enumerated() {
             if warrior.isAlive {
                 let randomDelay = Double.random(in: 0.1...0.8)
-                DispatchQueue.main.asyncAfter(deadline: .now() + randomDelay) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + randomDelay) { [weak self] in
+                    guard let self = self, !self.isGameStopped else { return }
                     self.performEnemyWarriorAttack(at: index)
                 }
             }
@@ -331,6 +376,8 @@ class GameViewModel: ObservableObject {
     }
     
     func performPlayerWarriorAttack(at index: Int) {
+        // Проверяем, не остановлена ли игра
+        guard !isGameStopped else { return }
         guard index < playerWarriors.count, playerWarriors[index].isAlive else { return }
         
         // Находим случайного живого противника
@@ -361,6 +408,12 @@ class GameViewModel: ObservableObject {
             enemyWarriors[targetIndex].damageFlashOpacity = 0.0
         }
         
+        // Воспроизводим случайный звук удара (только если игра не остановлена)
+        if !isGameStopped {
+            let hitSound = "hit_\(Int.random(in: 1...5))"
+            SoundManager.shared.playEffect(hitSound)
+        }
+        
         // Наносим урон
         enemyWarriors[targetIndex].health = max(0, enemyWarriors[targetIndex].health - damage)
         
@@ -369,20 +422,25 @@ class GameViewModel: ObservableObject {
             withAnimation(.easeOut(duration: 0.5)) {
                 enemyWarriors[targetIndex].opacity = 0.0
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self = self, !self.isGameStopped else { return }
                 self.enemyWarriors[targetIndex].isAlive = false
                 self.checkBattleEnd()
             }
         }
         
-        // Следующая атака через случайный интервал
+        // Следующая атака через случайный интервал (только если игра не остановлена)
+        guard !isGameStopped else { return }
         let nextAttackDelay = Double.random(in: 1.5...2.5)
-        DispatchQueue.main.asyncAfter(deadline: .now() + nextAttackDelay) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + nextAttackDelay) { [weak self] in
+            guard let self = self, !self.isGameStopped else { return }
             self.performPlayerWarriorAttack(at: index)
         }
     }
     
     func performEnemyWarriorAttack(at index: Int) {
+        // Проверяем, не остановлена ли игра
+        guard !isGameStopped else { return }
         guard index < enemyWarriors.count, enemyWarriors[index].isAlive else { return }
         
         // Находим случайного живого воина игрока
@@ -413,6 +471,12 @@ class GameViewModel: ObservableObject {
             playerWarriors[targetIndex].damageFlashOpacity = 0.0
         }
         
+        // Воспроизводим случайный звук удара (только если игра не остановлена)
+        if !isGameStopped {
+            let hitSound = "hit_\(Int.random(in: 1...5))"
+            SoundManager.shared.playEffect(hitSound)
+        }
+        
         // Наносим урон
         playerWarriors[targetIndex].health = max(0, playerWarriors[targetIndex].health - damage)
         
@@ -421,20 +485,26 @@ class GameViewModel: ObservableObject {
             withAnimation(.easeOut(duration: 0.5)) {
                 playerWarriors[targetIndex].opacity = 0.0
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self = self, !self.isGameStopped else { return }
                 self.playerWarriors[targetIndex].isAlive = false
                 self.checkBattleEnd()
             }
         }
         
-        // Следующая атака через случайный интервал
+        // Следующая атака через случайный интервал (только если игра не остановлена)
+        guard !isGameStopped else { return }
         let nextAttackDelay = Double.random(in: 1.5...2.5)
-        DispatchQueue.main.asyncAfter(deadline: .now() + nextAttackDelay) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + nextAttackDelay) { [weak self] in
+            guard let self = self, !self.isGameStopped else { return }
             self.performEnemyWarriorAttack(at: index)
         }
     }
     
     func checkBattleEnd() {
+        // Проверяем, не остановлена ли игра
+        guard !isGameStopped else { return }
+        
         let playerAlive = playerWarriors.contains(where: { $0.isAlive })
         let enemyAlive = enemyWarriors.contains(where: { $0.isAlive })
         
@@ -564,17 +634,42 @@ class GameViewModel: ObservableObject {
     
     func opponentTurn() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            // Находим случайную видимую табличку
-            let visibleIndices = self.tablets.enumerated()
+            // Находим видимые таблички
+            let visibleTablets = self.tablets.enumerated()
                 .filter { $0.element.isVisible }
-                .map { $0.offset }
             
-            if let randomIndex = visibleIndices.randomElement() {
+            // Разделяем на atc (отрицательные модификаторы) и hp (положительные модификаторы)
+            let atcTablets = visibleTablets.filter { tablet in
+                let modifier = self.getTabletAttackModifier(for: tablet.element.imageName)
+                return modifier < 0 // atc таблички уменьшают атаку
+            }
+            
+            let hpTablets = visibleTablets.filter { tablet in
+                let modifier = self.getTabletAttackModifier(for: tablet.element.imageName)
+                return modifier > 0 // hp таблички увеличивают атаку
+            }
+            
+            // Враг приоритетно выбирает atc таблички (которые уменьшают его атаку)
+            // чтобы не получить слишком большой бонус и сделать игру более сбалансированной
+            let selectedTablet: (offset: Int, element: TabletItem)?
+            
+            if !atcTablets.isEmpty {
+                // Если есть atc таблички, всегда выбираем их (не выбираем hp таблички)
+                selectedTablet = atcTablets.randomElement()
+            } else if !hpTablets.isEmpty {
+                // Если нет atc табличек, только тогда выбираем hp табличку
+                selectedTablet = hpTablets.randomElement()
+            } else {
+                // Если нет видимых табличек (не должно произойти)
+                selectedTablet = nil
+            }
+            
+            if let (index, _) = selectedTablet {
                 // Запоминаем выбранную табличку противником
-                self.selectedTabletsByEnemy.append(self.tablets[randomIndex].imageName)
+                self.selectedTabletsByEnemy.append(self.tablets[index].imageName)
                 
                 withAnimation(.easeOut(duration: 0.3)) {
-                    self.tablets[randomIndex].isVisible = false
+                    self.tablets[index].isVisible = false
                 }
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
@@ -637,13 +732,14 @@ class GameViewModel: ObservableObject {
 
 struct Game: View {
     @AppStorage("bgNumber") var bgNumber: Int = 2
+    @AppStorage("selectedShopItem") var selectedShopItem: Int = 0
     @AppStorage("score") var score = 0
     @StateObject private var viewModel = GameViewModel()
     
     var body: some View {
         ZStack {
         VStack {
-            Backgrounds(backgroundNumber: bgNumber)
+            Backgrounds(backgroundNumber: selectedShopItem+2)
             }
             
             VStack {
@@ -697,7 +793,12 @@ struct Game: View {
                     .scaledToFit()
                     .frame(height: screenHeight*0.07)
                     .onTapGesture {
-                        NavGuard.shared.currentScreen = .MENU
+                        // Останавливаем игру и все звуки
+                        viewModel.stopGame()
+                        // Возвращаемся в меню (с небольшой задержкой для завершения остановки)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            NavGuard.shared.currentScreen = .MENU
+                        }
                     }
                 HStack {
                     VStack {

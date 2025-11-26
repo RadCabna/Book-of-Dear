@@ -4,6 +4,9 @@ import Foundation
 enum AvailableScreens {
     case MENU
     case GAME
+    case SHOP
+    case SETTINGS
+    case RECORDS
 }
 
 class NavGuard: ObservableObject {

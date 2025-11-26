@@ -49,11 +49,20 @@ struct Menu: View {
                                     NavGuard.shared.currentScreen = .GAME
                                 }
                             MenuButton(name: "SHOP")
+                                .onTapGesture {
+                                    NavGuard.shared.currentScreen = .SHOP
+                                }
                             MenuButton(name: "RECORD")
+                                .onTapGesture {
+                                    NavGuard.shared.currentScreen = .RECORDS
+                                }
                             Image(.settingButton)
                                 .resizable()
                                 .scaledToFit()
                                 .frame(height: screenHeight*0.08)
+                                .onTapGesture {
+                                    NavGuard.shared.currentScreen = .SETTINGS
+                                }
                         }
                             .offset(y: screenHeight*0.07)
                     )
@@ -88,6 +97,17 @@ struct Menu: View {
         
         .onAppear {
             animation()
+            // Воспроизводим музыку при входе в меню (только если она не играет)
+            // Небольшая задержка, чтобы убедиться, что переход завершен
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                if !SoundManager.shared.isMusicPlaying {
+                    SoundManager.shared.playMusic("music", loop: true)
+                }
+            }
+        }
+        .onDisappear {
+            // НЕ останавливаем музыку при выходе из меню, если переходим в игру
+            // Музыка будет остановлена только при явной остановке игры
         }
         
     }
