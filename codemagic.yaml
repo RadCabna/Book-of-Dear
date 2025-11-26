@@ -15,7 +15,7 @@ workflows:
         vars:
           XCODE_PROJECT: "Book of Dead.xcodeproj" # <-- Put the name of your workspace here.
           XCODE_SCHEME: "Book of Dead" # <-- Put the name of your scheme here.
-          BUNDLE_ID: "com.bookofdead.game" # <-- Put your Bundle Id here.
+          BUNDLE_ID: "com.barstowflow.game" # <-- Put your Bundle Id here.
           APP_STORE_APPLE_ID: 6755790513 # <-- Put the app id number here. This is found in App Store Connect > App > General > App Information
         xcode: latest # <-- set to specific version e.g. 14.3, 15.0 to avoid unexpected updates.
         cocoapods: default
